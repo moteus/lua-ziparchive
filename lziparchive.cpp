@@ -42,6 +42,22 @@ double ui64ToDouble(unsigned long long ui64)
 }
 #endif
 
+#if LUA_VERSION_NUM >= 502
+
+int luaL_typerror (lua_State *L, int narg, const char *tname) {
+  const char *msg = lua_pushfstring(L, "%s expected, got %s", tname,
+      luaL_typename(L, narg));
+  return luaL_argerror(L, narg, msg);
+}
+
+void luaL_register (lua_State *L, const char *libname, const luaL_Reg *l){
+  if(libname) lua_newtable(L);
+  luaL_setfuncs(L, l, 0);
+}
+
+#define lua_objlen lua_rawlen
+
+#endif
 
 using namespace Misc;
 
@@ -1376,13 +1392,13 @@ int LS_AdjustTime_t(lua_State* L) {
 }
 
 
-static const struct luaL_reg lziparchivefilehandle_funcs[] = {
+static const struct luaL_Reg lziparchivefilehandle_funcs[] = {
 	{ "__gc",				filehandle_gc },
 	{ NULL, NULL },
 };
 
 
-static const struct luaL_reg lziparchive_funcs[] = {
+static const struct luaL_Reg lziparchive_funcs[] = {
 	{ "open",				lziparchive_open },
 	{ "openfrommemory",		lziparchive_openfrommemory },
 	{ "close",				lziparchive_close },
@@ -1475,7 +1491,7 @@ static int LS_filecrcmd5(lua_State* L)
 }
 
 
-static const struct luaL_reg lziparchivelib[] = {
+static const struct luaL_Reg lziparchivelib[] = {
 	{ "new",				lziparchive_new },
 	{ "open",				lziparchive_new_open },
 	{ "help",				LS_Help },

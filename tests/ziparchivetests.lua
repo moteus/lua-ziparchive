@@ -1,4 +1,4 @@
-require 'ziparchive'
+local ziparchive = require 'ziparchive'
 
 lowerAlphabet = 'abcdefghijklmnopqrstuvwxyz'
 

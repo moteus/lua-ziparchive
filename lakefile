@@ -1,0 +1,105 @@
+PROJECT = 'ziparchive'
+
+if LUA_VER == '5.2' then
+  LUA_NEED = 'lua52'
+  LUA_DIR = ENV.LUA_DIR_5_2 or ENV.LUA_DIR
+  LUA_RUNNER = 'lua52'
+else
+  LUA_NEED = 'lua51'
+  LUA_DIR = ENV.LUA_DIR
+  LUA_RUNNER = 'lua'
+end
+
+ROOT    = ROOT or J(LUA_DIR, 'libs', PROJECT)
+LUADIR  = LUADIR or J(ROOT, 'share')
+LIBDIR  = LIBDIR or J(ROOT, 'share')
+DYNAMIC = as_bool(DYNAMIC, false)
+WINVER  = IF(WINDOWS, WINVER or '501', '')
+
+ZLIB_DIR = J(ENV.CPPLIB_DIR, 'zlib', '1.2.7')
+if MSVC then
+  local LIB_POSTFIX = '_vc' .. vc_version() .. '_' .. IF(DYNAMIC, 'md', 'mt')
+  lake.define_need('zlib', function()
+    return {
+      incdir = J(ZLIB_DIR, 'include');
+      libdir = J(ZLIB_DIR, 'static');
+      libs   = {'zlib' .. LIB_POSTFIX};
+    }
+  end)
+else
+  lake.define_need('zlib', function()
+    return {
+      incdir = J(ZLIB_DIR, 'include');
+      libdir = J(ZLIB_DIR, 'lib');
+      libs   = {'zlib'};
+    }
+  end)
+end
+
+DEFINES = L{
+  IF(DEBUG, {'_DEBUG', 'DEBUG'},'NDEBUG');
+  IF(WINDOWS,{'WIN32','_WIN32','_WINDOWS','WINDOWS'});
+  IF(WINDOWS,'_WIN32_WINNT=0x0' .. WINVER);
+  IF(MSVC, '_CRT_SECURE_NO_WARNINGS');
+}
+
+aes = c.library{'aes',
+  base = J('misc','aes');
+  defines = DEFINES;
+  dynamic = DYNAMIC;
+  src  = {'aescrypt.c','aeskey.c','aestab.c','fileenc.c','hmac.c','prng.c','pwd2key.c','sha1.c','sha2.c'};
+}
+target('aes', aes)
+
+trio = c.library{'trio',
+  base = J('misc','trio');
+  defines = DEFINES;
+  dynamic = DYNAMIC;
+  src  = {'trio.c','trionan.c','triostr.c'};
+}
+target('trio', trio)
+
+md5 = c.library{'md5',
+  base = J('misc','md5');
+  defines = DEFINES;
+  dynamic = DYNAMIC;
+  src  = 'md5c.c';
+}
+target('md5', md5)
+
+misc = cpp.library{'misc',
+  base = 'misc';
+  src  = {'AnsiString.cpp','DiskFile.cpp','HeapString.cpp','MemFile.cpp','Misc.cpp','ZipArchive.cpp','ZipEntryFile.cpp'};
+  defines = DEFINES;
+  dynamic = DYNAMIC;
+  deps    = {aes, trio, md5};
+  needs   = 'zlib';
+}
+target('misc', misc)
+
+ziparchive = cpp.shared{PROJECT,
+  base = '.';
+  src  = 'lziparchive.cpp';
+  defines = DEFINES;
+  dynamic = DYNAMIC;
+  needs = {
+    LUA_NEED;
+    'zlib';
+  };
+  libs = IF(WINDOWS, 'user32');
+  deps = {misc};
+  libflags = IF(MSVC, '/EXPORT:luaopen_'..PROJECT)
+}
+target(PROJECT, ziparchive)
+
+install = target('install', {
+  file.group{odir = LIBDIR; src = ziparchive};
+  file.group{odir=J(ROOT, 'doc'), src = J('doc','*'), recurse=true};
+  file.group{odir=J(ROOT, 'test'), src = J('tests','*.*'), recurse=true};
+})
+
+target('test', install, function()
+  run_test('ziparchivetests.lua')
+end)
+
+target('build', {ziparchive})
